@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Plus, Target, TrendingUp, Calendar, Zap } from "lucide-react";
+import { Plus, Target, TrendingUp, Calendar, Zap, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoalCard } from "@/components/GoalCard";
 import { CreateGoalDialog } from "@/components/CreateGoalDialog";
 import { StatsOverview } from "@/components/StatsOverview";
 import { ActionLog } from "@/components/ActionLog";
+import { AccountabilityHub } from "@/components/AccountabilityHub";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
 export interface Goal {
@@ -132,89 +134,147 @@ const Index = () => {
           </Button>
         </div>
 
-        {/* Stats Overview */}
-        <StatsOverview 
-          totalGoals={goals.length}
-          averageProgress={averageProgress}
-          totalActions={totalActions}
-          completedActions={completedActions}
-        />
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="goals" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[400px] mx-auto">
+            <TabsTrigger value="goals" className="flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              My Goals
+            </TabsTrigger>
+            <TabsTrigger value="accountability" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Accountability
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Goals Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {goals.map((goal) => (
-            <GoalCard 
-              key={goal.id} 
-              goal={goal} 
-              onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
+          <TabsContent value="goals" className="space-y-6">
+            {/* Stats Overview */}
+            <StatsOverview 
+              totalGoals={goals.length}
+              averageProgress={averageProgress}
+              totalActions={totalActions}
+              completedActions={completedActions}
             />
-          ))}
-          
-          {goals.length === 0 && (
-            <Card className="bg-gradient-card border-border shadow-elegant">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Target className="w-16 h-16 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No goals yet</h3>
-                <p className="text-muted-foreground text-center mb-6">
-                  Create your first goal to start tracking your progress
-                </p>
-                <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Your First Goal
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
 
-        {/* AI Insights & Action Log */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <ActionLog goals={goals} onUpdateGoal={handleUpdateGoal} />
-          </div>
-          <div>
-            <Card className="bg-gradient-card border-border shadow-elegant">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Zap className="w-5 h-5 mr-2 text-primary" />
-                  AI Insights
-                </CardTitle>
-                <CardDescription>
-                  Intelligent recommendations for your goals
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 rounded-lg bg-muted/20 border border-primary/20">
-                  <p className="text-sm font-medium text-primary mb-2">💡 Smart Suggestion</p>
-                  <p className="text-sm text-muted-foreground">
-                    Based on your progress, consider breaking down "Launch SaaS Product" into smaller weekly milestones for better momentum.
-                  </p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/20 border border-accent/20">
-                  <p className="text-sm font-medium text-accent mb-2">🔥 Momentum Alert</p>
-                  <p className="text-sm text-muted-foreground">
-                    You've completed 67% of your actions this week! Keep this pace to hit your deadlines.
-                  </p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/20 border border-warning/20">
-                  <p className="text-sm font-medium text-warning mb-2">⚡ Action Needed</p>
-                  <p className="text-sm text-muted-foreground">
-                    "Master AI & Machine Learning" needs attention. Consider scheduling dedicated time blocks.
-                  </p>
-                </div>
-                <Button className="w-full" variant="outline">
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  Get AI Analysis
-                </Button>
-                <div className="mt-3 p-3 rounded-lg bg-muted/10 border border-primary/10">
-                  <p className="text-xs text-muted-foreground">
-                    💡 <strong>Pro Tip:</strong> Connect to Supabase for real AI-powered insights, automated goal breakdowns, and personalized recommendations based on your progress patterns.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+            {/* Goals Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {goals.map((goal) => (
+                <GoalCard 
+                  key={goal.id} 
+                  goal={goal} 
+                  onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
+                />
+              ))}
+              
+              {goals.length === 0 && (
+                <Card className="bg-gradient-card border-border shadow-elegant">
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Target className="w-16 h-16 text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">No goals yet</h3>
+                    <p className="text-muted-foreground text-center mb-6">
+                      Create your first goal to start tracking your progress
+                    </p>
+                    <Button onClick={() => setShowCreateDialog(true)} variant="outline">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Goal
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* AI Insights & Action Log */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <ActionLog goals={goals} onUpdateGoal={handleUpdateGoal} />
+              </div>
+              <div>
+                <Card className="bg-gradient-card border-border shadow-elegant">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Zap className="w-5 h-5 mr-2 text-primary" />
+                      AI Insights
+                    </CardTitle>
+                    <CardDescription>
+                      Intelligent recommendations for your goals
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 rounded-lg bg-muted/20 border border-primary/20">
+                      <p className="text-sm font-medium text-primary mb-2">💡 Smart Suggestion</p>
+                      <p className="text-sm text-muted-foreground">
+                        Based on your progress, consider breaking down "Launch SaaS Product" into smaller weekly milestones for better momentum.
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border border-accent/20">
+                      <p className="text-sm font-medium text-accent mb-2">🔥 Momentum Alert</p>
+                      <p className="text-sm text-muted-foreground">
+                        You've completed 67% of your actions this week! Keep this pace to hit your deadlines.
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border border-warning/20">
+                      <p className="text-sm font-medium text-warning mb-2">⚡ Action Needed</p>
+                      <p className="text-sm text-muted-foreground">
+                        "Master AI & Machine Learning" needs attention. Consider scheduling dedicated time blocks.
+                      </p>
+                    </div>
+                    <Button className="w-full" variant="outline">
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      Get AI Analysis
+                    </Button>
+                    <div className="mt-3 p-3 rounded-lg bg-muted/10 border border-primary/10">
+                      <p className="text-xs text-muted-foreground">
+                        💡 <strong>Pro Tip:</strong> Connect to Supabase for real AI-powered insights, automated goal breakdowns, and personalized recommendations based on your progress patterns.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="accountability">
+            <AccountabilityHub />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="bg-gradient-card border-border shadow-elegant">
+                <CardHeader>
+                  <CardTitle>Goal Progress Trends</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-4" />
+                      <p>Advanced analytics coming soon!</p>
+                      <p className="text-sm mt-2">Connect Supabase for detailed insights</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-card border-border shadow-elegant">
+                <CardHeader>
+                  <CardTitle>Accountability Impact</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <Users className="w-12 h-12 mx-auto mb-4" />
+                      <p>Track how accountability affects your success rate</p>
+                      <p className="text-sm mt-2">Available with partner system</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <CreateGoalDialog 
           open={showCreateDialog}
