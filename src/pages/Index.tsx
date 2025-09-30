@@ -7,6 +7,8 @@ import { CreateGoalDialog } from "@/components/CreateGoalDialog";
 import { StatsOverview } from "@/components/StatsOverview";
 import { ActionLog } from "@/components/ActionLog";
 import { AccountabilityHub } from "@/components/AccountabilityHub";
+import { MindMapView } from "@/components/MindMapView";
+import { NetworkGraphView } from "@/components/NetworkGraphView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -136,10 +138,14 @@ const Index = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="goals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px] mx-auto">
+          <TabsList className="grid w-full grid-cols-4 lg:w-[600px] mx-auto">
             <TabsTrigger value="goals" className="flex items-center gap-2">
               <Target className="w-4 h-4" />
               My Goals
+            </TabsTrigger>
+            <TabsTrigger value="graph" className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Graph View
             </TabsTrigger>
             <TabsTrigger value="accountability" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
@@ -234,6 +240,40 @@ const Index = () => {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="graph" className="space-y-6">
+            <div className="space-y-8">
+              <Card className="bg-gradient-card border-border shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-primary" />
+                    Mind Map View
+                  </CardTitle>
+                  <CardDescription>
+                    Visual representation of your goals with central hub layout
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <MindMapView goals={goals} />
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-card border-border shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Network Graph View
+                  </CardTitle>
+                  <CardDescription>
+                    Hierarchical layout showing goals, actions, and relationships
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <NetworkGraphView goals={goals} />
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
