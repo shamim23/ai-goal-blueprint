@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Goal, Action } from "@/pages/Index";
+import { Goal, Action, Milestone } from "@/app/page";
 import { useToast } from "@/hooks/use-toast";
+import { ExpandableAction } from "@/components/ExpandableAction";
+import { ExpandableMilestone } from "@/components/ExpandableMilestone";
 
 interface GoalCardProps {
   goal: Goal;
@@ -39,7 +41,8 @@ export function GoalCard({ goal, onUpdate }: GoalCardProps) {
       title: newActionTitle,
       completed: false,
       date: new Date().toISOString().split('T')[0],
-      impact: 10
+      impact: 10,
+      subActions: []
     };
 
     onUpdate({
@@ -157,32 +160,28 @@ export function GoalCard({ goal, onUpdate }: GoalCardProps) {
                     </div>
                   </div>
                   
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {goal.actions.map((action) => (
-                      <div
-                        key={action.id}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/50"
-                      >
-                        <button
-                          onClick={() => toggleAction(action.id)}
-                          className="flex-shrink-0"
-                        >
-                          {action.completed ? (
-                            <CheckCircle className="w-5 h-5 text-accent" />
-                          ) : (
-                            <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
-                          )}
-                        </button>
-                        <div className="flex-1">
-                          <p className={`font-medium ${action.completed ? 'line-through text-muted-foreground' : ''}`}>
-                            {action.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {action.date} • Impact: +{action.impact} points
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {goal.actions.map((action) => {
+                      // Helper function to update an action
+                      const handleUpdateAction = (actionId: string, updates: Partial<Action>) => {
+                        const updatedActions = goal.actions.map(a =>
+                          a.id === actionId ? { ...a, ...updates } : a
+                        );
+                        onUpdate({ actions: updatedActions });
+                      };
+
+                      return (
+                        <ExpandableAction
+                          key={action.id}
+                          action={action}
+                          goalContext={{
+                            goalTitle: goal.title,
+                            goalCategory: goal.category
+                          }}
+                          onUpdateAction={handleUpdateAction}
+                        />
+                      );
+                    })}
                     
                     {goal.actions.length === 0 && (
                       <p className="text-center text-muted-foreground py-4">
@@ -195,22 +194,28 @@ export function GoalCard({ goal, onUpdate }: GoalCardProps) {
                 {/* Milestones */}
                 <div>
                   <h3 className="font-semibold mb-3">Milestones</h3>
-                  <div className="space-y-2">
-                    {goal.milestones.map((milestone, index) => (
-                      <div key={milestone.id} className="flex items-center gap-3 p-2">
-                        <div className={`w-4 h-4 rounded-full border-2 ${
-                          milestone.completed 
-                            ? 'bg-accent border-accent' 
-                            : 'border-muted-foreground'
-                        }`} />
-                        <div className="flex-1">
-                          <p className={`font-medium ${milestone.completed ? 'text-accent' : ''}`}>
-                            {milestone.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{milestone.date}</p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-1">
+                    {goal.milestones.map((milestone) => {
+                      // Helper function to update a milestone
+                      const handleUpdateMilestone = (milestoneId: string, updates: Partial<Milestone>) => {
+                        const updatedMilestones = goal.milestones.map(m =>
+                          m.id === milestoneId ? { ...m, ...updates } : m
+                        );
+                        onUpdate({ milestones: updatedMilestones });
+                      };
+
+                      return (
+                        <ExpandableMilestone
+                          key={milestone.id}
+                          milestone={milestone}
+                          goalContext={{
+                            goalTitle: goal.title,
+                            goalCategory: goal.category
+                          }}
+                          onUpdateMilestone={handleUpdateMilestone}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Goal, Action } from "@/pages/Index";
+import { Goal, Action } from "@/app/page";
 import { useToast } from "@/hooks/use-toast";
+import { ExpandableAction } from "@/components/ExpandableAction";
 
 interface ActionLogProps {
   goals: Goal[];
@@ -147,47 +148,33 @@ export function ActionLog({ goals, onUpdateGoal }: ActionLogProps) {
         </div>
 
         {/* Actions List */}
-        <div className="space-y-3 max-h-80 overflow-y-auto">
-          {filteredActions.map((action) => (
-            <div
-              key={`${action.goalId}-${action.id}`}
-              className="flex items-center gap-3 p-4 rounded-lg bg-muted/20 border border-border/50 hover:bg-muted/30 transition-colors"
-            >
-              <button
-                onClick={() => toggleActionComplete(action)}
-                className="flex-shrink-0"
-              >
-                {action.completed ? (
-                  <CheckCircle className="w-5 h-5 text-accent" />
-                ) : (
-                  <div className="w-5 h-5 rounded-full border-2 border-muted-foreground hover:border-primary transition-colors" />
-                )}
-              </button>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className={`font-medium ${action.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                    {action.title}
-                  </p>
-                  <Badge 
-                    className={`text-xs ${categoryColors[action.goalCategory]} text-white`}
-                    variant="secondary"
-                  >
-                    {action.goalTitle}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>{action.date}</span>
-                  <span>Impact: +{action.impact} pts</span>
-                </div>
-              </div>
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {filteredActions.map((action) => {
+            // Helper function to update an action in the goal
+            const handleUpdateAction = (actionId: string, updates: Partial<Action>) => {
+              const goal = goals.find(g => g.id === action.goalId);
+              if (!goal) return;
 
-              <div className="flex items-center gap-2 text-sm">
-                <TrendingUp className="w-4 h-4 text-accent" />
-                <span className="text-accent font-medium">+{action.impact}</span>
+              const updatedActions = goal.actions.map(a =>
+                a.id === actionId ? { ...a, ...updates } : a
+              );
+
+              onUpdateGoal(action.goalId, { actions: updatedActions });
+            };
+
+            return (
+              <div key={`${action.goalId}-${action.id}`}>
+                <ExpandableAction
+                  action={action}
+                  goalContext={{
+                    goalTitle: action.goalTitle,
+                    goalCategory: action.goalCategory
+                  }}
+                  onUpdateAction={handleUpdateAction}
+                />
               </div>
-            </div>
-          ))}
+            );
+          })}
           
           {filteredActions.length === 0 && (
             <div className="text-center py-8">

@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from "react";
 import { Plus, Target, TrendingUp, Calendar, Zap, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,10 @@ export interface Action {
   completed: boolean;
   date: string;
   impact: number;
+  subActions?: Action[];
+  level?: number;
+  parentId?: string;
+  isExpanded?: boolean;
 }
 
 export interface Milestone {
@@ -37,9 +43,11 @@ export interface Milestone {
   title: string;
   completed: boolean;
   date: string;
+  subActions?: Action[];
+  isExpanded?: boolean;
 }
 
-const Index = () => {
+export default function HomePage() {
   const { toast } = useToast();
   const [goals, setGoals] = useState<Goal[]>([
     {
@@ -51,9 +59,9 @@ const Index = () => {
       target: 100,
       deadline: "2024-12-31",
       actions: [
-        { id: "a1", title: "Complete MVP development", completed: true, date: "2024-01-15", impact: 25 },
-        { id: "a2", title: "User testing with 50 beta users", completed: true, date: "2024-01-20", impact: 20 },
-        { id: "a3", title: "Marketing campaign setup", completed: false, date: "2024-02-01", impact: 20 },
+        { id: "a1", title: "Complete MVP development", completed: true, date: "2024-01-15", impact: 25, subActions: [] },
+        { id: "a2", title: "User testing with 50 beta users", completed: true, date: "2024-01-20", impact: 20, subActions: [] },
+        { id: "a3", title: "Marketing campaign setup", completed: false, date: "2024-02-01", impact: 20, subActions: [] },
       ],
       milestones: [
         { id: "m1", title: "MVP Complete", completed: true, date: "2024-01-15" },
@@ -62,7 +70,7 @@ const Index = () => {
       ]
     },
     {
-      id: "2", 
+      id: "2",
       title: "Master AI & Machine Learning",
       description: "Become proficient in AI/ML technologies and applications",
       category: "learning",
@@ -70,9 +78,9 @@ const Index = () => {
       target: 100,
       deadline: "2024-06-30",
       actions: [
-        { id: "a4", title: "Complete Python fundamentals", completed: true, date: "2024-01-10", impact: 15 },
-        { id: "a5", title: "Finish Andrew Ng's ML Course", completed: true, date: "2024-01-18", impact: 25 },
-        { id: "a6", title: "Build 3 ML projects", completed: false, date: "2024-02-15", impact: 30 },
+        { id: "a4", title: "Complete Python fundamentals", completed: true, date: "2024-01-10", impact: 15, subActions: [] },
+        { id: "a5", title: "Finish Andrew Ng's ML Course", completed: true, date: "2024-01-18", impact: 25, subActions: [] },
+        { id: "a6", title: "Build 3 ML projects", completed: false, date: "2024-02-15", impact: 30, subActions: [] },
       ],
       milestones: [
         { id: "m4", title: "Complete foundational courses", completed: true, date: "2024-01-20" },
@@ -84,32 +92,60 @@ const Index = () => {
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  const handleCreateGoal = (newGoal: Omit<Goal, "id" | "progress" | "actions" | "milestones">) => {
-    const goal: Goal = {
-      ...newGoal,
-      id: Date.now().toString(),
-      progress: 0,
-      actions: [],
-      milestones: []
-    };
-    setGoals(prev => [...prev, goal]);
-    toast({
-      title: "Goal Created! 🎯",
-      description: `"${goal.title}" has been added to your goals.`,
-    });
+  const handleCreateGoal = async (newGoal: Omit<Goal, "id" | "progress" | "actions" | "milestones">) => {
+    // Call AI enhancement API
+    try {
+      const response = await fetch('/api/ai-enhance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ goal: newGoal }),
+      });
+
+      const enhancedData = await response.json();
+
+      const goal: Goal = {
+        ...newGoal,
+        id: Date.now().toString(),
+        progress: 0,
+        actions: enhancedData.actions || [],
+        milestones: enhancedData.milestones || []
+      };
+
+      setGoals(prev => [...prev, goal]);
+      toast({
+        title: "Goal Created with AI Enhancement! 🎯✨",
+        description: `"${goal.title}" has been enhanced with AI-suggested actions and milestones.`,
+      });
+    } catch (error) {
+      // Fallback to regular goal creation
+      const goal: Goal = {
+        ...newGoal,
+        id: Date.now().toString(),
+        progress: 0,
+        actions: [],
+        milestones: []
+      };
+      setGoals(prev => [...prev, goal]);
+      toast({
+        title: "Goal Created! 🎯",
+        description: `"${goal.title}" has been added to your goals.`,
+      });
+    }
   };
 
   const handleUpdateGoal = (goalId: string, updates: Partial<Goal>) => {
-    setGoals(prev => prev.map(goal => 
+    setGoals(prev => prev.map(goal =>
       goal.id === goalId ? { ...goal, ...updates } : goal
     ));
   };
 
   const totalActions = goals.reduce((sum, goal) => sum + goal.actions.length, 0);
-  const completedActions = goals.reduce((sum, goal) => 
+  const completedActions = goals.reduce((sum, goal) =>
     sum + goal.actions.filter(action => action.completed).length, 0
   );
-  const averageProgress = goals.length > 0 
+  const averageProgress = goals.length > 0
     ? Math.round(goals.reduce((sum, goal) => sum + goal.progress, 0) / goals.length)
     : 0;
 
@@ -126,7 +162,7 @@ const Index = () => {
               Transform your ambitions into achievements with AI-powered insights
             </p>
           </div>
-          <Button 
+          <Button
             onClick={() => setShowCreateDialog(true)}
             className="bg-gradient-primary hover:shadow-glow transition-all duration-300 mt-4 md:mt-0"
             size="lg"
@@ -159,7 +195,7 @@ const Index = () => {
 
           <TabsContent value="goals" className="space-y-6">
             {/* Stats Overview */}
-            <StatsOverview 
+            <StatsOverview
               totalGoals={goals.length}
               averageProgress={averageProgress}
               totalActions={totalActions}
@@ -169,13 +205,13 @@ const Index = () => {
             {/* Goals Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               {goals.map((goal) => (
-                <GoalCard 
-                  key={goal.id} 
-                  goal={goal} 
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
                   onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
                 />
               ))}
-              
+
               {goals.length === 0 && (
                 <Card className="bg-gradient-card border-border shadow-elegant">
                   <CardContent className="flex flex-col items-center justify-center py-12">
@@ -234,7 +270,7 @@ const Index = () => {
                     </Button>
                     <div className="mt-3 p-3 rounded-lg bg-muted/10 border border-primary/10">
                       <p className="text-xs text-muted-foreground">
-                        💡 <strong>Pro Tip:</strong> Connect to Supabase for real AI-powered insights, automated goal breakdowns, and personalized recommendations based on your progress patterns.
+                        💡 <strong>Pro Tip:</strong> AI enhancement is now active! New goals automatically get AI-suggested actions and milestones.
                       </p>
                     </div>
                   </CardContent>
@@ -297,7 +333,7 @@ const Index = () => {
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card className="bg-gradient-card border-border shadow-elegant">
                 <CardHeader>
                   <CardTitle>Accountability Impact</CardTitle>
@@ -316,7 +352,7 @@ const Index = () => {
           </TabsContent>
         </Tabs>
 
-        <CreateGoalDialog 
+        <CreateGoalDialog
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
           onCreateGoal={handleCreateGoal}
@@ -324,6 +360,4 @@ const Index = () => {
       </div>
     </div>
   );
-};
-
-export default Index;
+}
