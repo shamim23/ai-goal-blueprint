@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from "react";
-import { Plus, Target, TrendingUp, Calendar, Zap, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Target, TrendingUp, Calendar, Zap, Users, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoalCard } from "@/components/GoalCard";
@@ -11,6 +11,7 @@ import { ActionLog } from "@/components/ActionLog";
 import { AccountabilityHub } from "@/components/AccountabilityHub";
 import { MindMapView } from "@/components/MindMapView";
 import { NetworkGraphView } from "@/components/NetworkGraphView";
+import { ToolsSection } from "@/components/ToolsSection";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,94 +44,97 @@ export interface Milestone {
   title: string;
   completed: boolean;
   date: string;
-  subActions?: Action[];
+  actions?: Action[];
   isExpanded?: boolean;
 }
 
 export default function HomePage() {
   const { toast } = useToast();
-  const [goals, setGoals] = useState<Goal[]>([
-    {
-      id: "1",
-      title: "Launch SaaS Product",
-      description: "Build and launch a revolutionary productivity tool",
-      category: "business",
-      progress: 65,
-      target: 100,
-      deadline: "2024-12-31",
-      actions: [
-        { id: "a1", title: "Complete MVP development", completed: true, date: "2024-01-15", impact: 25, subActions: [] },
-        { id: "a2", title: "User testing with 50 beta users", completed: true, date: "2024-01-20", impact: 20, subActions: [] },
-        { id: "a3", title: "Marketing campaign setup", completed: false, date: "2024-02-01", impact: 20, subActions: [] },
-      ],
-      milestones: [
-        { id: "m1", title: "MVP Complete", completed: true, date: "2024-01-15" },
-        { id: "m2", title: "Beta Testing Phase", completed: true, date: "2024-01-25" },
-        { id: "m3", title: "Product Launch", completed: false, date: "2024-03-01" },
-      ]
-    },
-    {
-      id: "2",
-      title: "Master AI & Machine Learning",
-      description: "Become proficient in AI/ML technologies and applications",
-      category: "learning",
-      progress: 40,
-      target: 100,
-      deadline: "2024-06-30",
-      actions: [
-        { id: "a4", title: "Complete Python fundamentals", completed: true, date: "2024-01-10", impact: 15, subActions: [] },
-        { id: "a5", title: "Finish Andrew Ng's ML Course", completed: true, date: "2024-01-18", impact: 25, subActions: [] },
-        { id: "a6", title: "Build 3 ML projects", completed: false, date: "2024-02-15", impact: 30, subActions: [] },
-      ],
-      milestones: [
-        { id: "m4", title: "Complete foundational courses", completed: true, date: "2024-01-20" },
-        { id: "m5", title: "Build portfolio projects", completed: false, date: "2024-03-15" },
-        { id: "m6", title: "Land AI role or consultation", completed: false, date: "2024-06-30" },
-      ]
-    }
-  ]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
+  // Fetch goals from API
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        const response = await fetch('/api/goals');
+        if (response.ok) {
+          const data = await response.json();
+          setGoals(data.goals);
+        } else {
+          console.error('Failed to fetch goals:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error fetching goals:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGoals();
+  }, []);
+
   const handleCreateGoal = async (newGoal: Omit<Goal, "id" | "progress" | "actions" | "milestones">) => {
-    // Call AI enhancement API
     try {
-      const response = await fetch('/api/ai-enhance', {
+      // First create the goal in the database
+      const createResponse = await fetch('/api/goals', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ goal: newGoal }),
+        body: JSON.stringify(newGoal),
       });
 
-      const enhancedData = await response.json();
+      if (!createResponse.ok) {
+        throw new Error('Failed to create goal');
+      }
 
-      const goal: Goal = {
-        ...newGoal,
-        id: Date.now().toString(),
-        progress: 0,
-        actions: enhancedData.actions || [],
-        milestones: enhancedData.milestones || []
-      };
+      const { goal: createdGoal } = await createResponse.json();
 
-      setGoals(prev => [...prev, goal]);
-      toast({
-        title: "Goal Created with AI Enhancement! 🎯✨",
-        description: `"${goal.title}" has been enhanced with AI-suggested actions and milestones.`,
-      });
+      // Then enhance with AI
+      try {
+        const enhanceResponse = await fetch('/api/ai-enhance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ goal: newGoal }),
+        });
+
+        const enhancedData = await enhanceResponse.json();
+
+        const goal: Goal = {
+          ...createdGoal,
+          actions: enhancedData.actions || [],
+          milestones: enhancedData.milestones || []
+        };
+
+        setGoals(prev => [...prev, goal]);
+        toast({
+          title: "Goal Created with AI Enhancement! 🎯✨",
+          description: `"${goal.title}" has been enhanced with AI-suggested actions and milestones.`,
+        });
+      } catch (enhanceError) {
+        // Fallback to goal without AI enhancement
+        const goal: Goal = {
+          ...createdGoal,
+          actions: [],
+          milestones: []
+        };
+        setGoals(prev => [...prev, goal]);
+        toast({
+          title: "Goal Created! 🎯",
+          description: `"${goal.title}" has been added to your goals.`,
+        });
+      }
     } catch (error) {
-      // Fallback to regular goal creation
-      const goal: Goal = {
-        ...newGoal,
-        id: Date.now().toString(),
-        progress: 0,
-        actions: [],
-        milestones: []
-      };
-      setGoals(prev => [...prev, goal]);
+      console.error('Error creating goal:', error);
       toast({
-        title: "Goal Created! 🎯",
-        description: `"${goal.title}" has been added to your goals.`,
+        title: "Error",
+        description: "Failed to create goal. Please try again.",
+        variant: "destructive"
       });
     }
   };
@@ -174,10 +178,14 @@ export default function HomePage() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="goals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[600px] mx-auto">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[750px] mx-auto">
             <TabsTrigger value="goals" className="flex items-center gap-2">
               <Target className="w-4 h-4" />
               My Goals
+            </TabsTrigger>
+            <TabsTrigger value="tools" className="flex items-center gap-2">
+              <Wrench className="w-4 h-4" />
+              Tools
             </TabsTrigger>
             <TabsTrigger value="graph" className="flex items-center gap-2">
               <Zap className="w-4 h-4" />
@@ -204,28 +212,40 @@ export default function HomePage() {
 
             {/* Goals Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {goals.map((goal) => (
-                <GoalCard
-                  key={goal.id}
-                  goal={goal}
-                  onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
-                />
-              ))}
-
-              {goals.length === 0 && (
+              {isLoading ? (
+                // Loading state
                 <Card className="bg-gradient-card border-border shadow-elegant">
                   <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Target className="w-16 h-16 text-muted-foreground mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">No goals yet</h3>
-                    <p className="text-muted-foreground text-center mb-6">
-                      Create your first goal to start tracking your progress
-                    </p>
-                    <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Your First Goal
-                    </Button>
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-muted-foreground">Loading your goals...</p>
                   </CardContent>
                 </Card>
+              ) : (
+                <>
+                  {goals.map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
+                    />
+                  ))}
+
+                  {goals.length === 0 && (
+                    <Card className="bg-gradient-card border-border shadow-elegant">
+                      <CardContent className="flex flex-col items-center justify-center py-12">
+                        <Target className="w-16 h-16 text-muted-foreground mb-4" />
+                        <h3 className="text-xl font-semibold mb-2">No goals yet</h3>
+                        <p className="text-muted-foreground text-center mb-6">
+                          Create your first goal to start tracking your progress
+                        </p>
+                        <Button onClick={() => setShowCreateDialog(true)} variant="outline">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Your First Goal
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
               )}
             </div>
 
@@ -277,6 +297,10 @@ export default function HomePage() {
                 </Card>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="tools">
+            <ToolsSection goals={goals} />
           </TabsContent>
 
           <TabsContent value="graph" className="space-y-6">

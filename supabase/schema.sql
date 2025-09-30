@@ -66,12 +66,23 @@ CREATE TABLE IF NOT EXISTS public.milestone_actions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create tools table (for storing AI-generated productivity tools)
+CREATE TABLE IF NOT EXISTS public.tools (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  tools_data JSONB NOT NULL,
+  goals_snapshot JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.actions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.milestones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.milestone_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tools ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 
@@ -232,6 +243,23 @@ CREATE POLICY "Users can delete own milestone actions"
     )
   );
 
+-- Tools policies
+CREATE POLICY "Users can view own tools"
+  ON public.tools FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own tools"
+  ON public.tools FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own tools"
+  ON public.tools FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own tools"
+  ON public.tools FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- Function to handle user creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -267,3 +295,4 @@ CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON public.goals FOR EACH RO
 CREATE TRIGGER update_actions_updated_at BEFORE UPDATE ON public.actions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER update_milestones_updated_at BEFORE UPDATE ON public.milestones FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER update_milestone_actions_updated_at BEFORE UPDATE ON public.milestone_actions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_tools_updated_at BEFORE UPDATE ON public.tools FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
