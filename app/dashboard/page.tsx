@@ -12,6 +12,8 @@ import { AccountabilityHub } from "@/components/AccountabilityHub";
 import { MindMapView } from "@/components/MindMapView";
 import { NetworkGraphView } from "@/components/NetworkGraphView";
 import { ToolsSection } from "@/components/ToolsSection";
+import { EditGoalDialog } from "@/components/EditGoalDialog";
+import { DeleteGoalDialog } from "@/components/DeleteGoalDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,6 +56,8 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [deletingGoal, setDeletingGoal] = useState<Goal | null>(null);
 
   // Fetch goals from API
   useEffect(() => {
@@ -100,7 +104,7 @@ export default function HomePage() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ goal: newGoal }),
+          body: JSON.stringify({ goal: newGoal, goalId: createdGoal.id }),
         });
 
         const enhancedData = await enhanceResponse.json();
@@ -143,6 +147,32 @@ export default function HomePage() {
     setGoals(prev => prev.map(goal =>
       goal.id === goalId ? { ...goal, ...updates } : goal
     ));
+  };
+
+  const handleEditGoal = (goal: Goal) => {
+    setEditingGoal(goal);
+  };
+
+  const handleDeleteGoal = (goal: Goal) => {
+    setDeletingGoal(goal);
+  };
+
+  const handleGoalUpdated = (goalId: string, updatedGoal: Goal) => {
+    setGoals(prev => prev.map(goal =>
+      goal.id === goalId ? updatedGoal : goal
+    ));
+    toast({
+      title: "Goal Updated! ✅",
+      description: `"${updatedGoal.title}" has been updated successfully.`,
+    });
+  };
+
+  const handleGoalDeleted = (goalId: string) => {
+    setGoals(prev => prev.filter(goal => goal.id !== goalId));
+    toast({
+      title: "Goal Deleted! 🗑️",
+      description: "Goal and all associated data have been removed.",
+    });
   };
 
   const totalActions = goals.reduce((sum, goal) => sum + goal.actions.length, 0);
@@ -227,6 +257,8 @@ export default function HomePage() {
                       key={goal.id}
                       goal={goal}
                       onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
+                      onEdit={handleEditGoal}
+                      onDelete={handleDeleteGoal}
                     />
                   ))}
 
@@ -381,6 +413,24 @@ export default function HomePage() {
           onOpenChange={setShowCreateDialog}
           onCreateGoal={handleCreateGoal}
         />
+
+        {editingGoal && (
+          <EditGoalDialog
+            open={!!editingGoal}
+            onOpenChange={(open) => !open && setEditingGoal(null)}
+            goal={editingGoal}
+            onUpdateGoal={handleGoalUpdated}
+          />
+        )}
+
+        {deletingGoal && (
+          <DeleteGoalDialog
+            open={!!deletingGoal}
+            onOpenChange={(open) => !open && setDeletingGoal(null)}
+            goal={deletingGoal}
+            onDeleteGoal={handleGoalDeleted}
+          />
+        )}
       </div>
     </div>
   );

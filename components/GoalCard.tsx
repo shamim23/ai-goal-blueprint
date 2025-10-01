@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Target, Calendar, TrendingUp, CheckCircle, Circle, Plus } from "lucide-react";
+import { Target, Calendar, TrendingUp, CheckCircle, Circle, Plus, Edit, Trash2, MoreVertical } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Goal, Action, Milestone } from "@/app/page";
+import { Goal, Action, Milestone } from "@/app/dashboard/page";
 import { useToast } from "@/hooks/use-toast";
 import { ExpandableAction } from "@/components/ExpandableAction";
 import { ExpandableMilestone } from "@/components/ExpandableMilestone";
@@ -15,6 +16,8 @@ import { ExpandableMilestone } from "@/components/ExpandableMilestone";
 interface GoalCardProps {
   goal: Goal;
   onUpdate: (updates: Partial<Goal>) => void;
+  onEdit?: (goal: Goal) => void;
+  onDelete?: (goal: Goal) => void;
 }
 
 const categoryColors = {
@@ -24,7 +27,7 @@ const categoryColors = {
   learning: "bg-blue-500"
 };
 
-export function GoalCard({ goal, onUpdate }: GoalCardProps) {
+export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
   const { toast } = useToast();
   const [showActions, setShowActions] = useState(false);
   const [newActionTitle, setNewActionTitle] = useState("");
@@ -92,7 +95,35 @@ export function GoalCard({ goal, onUpdate }: GoalCardProps) {
             <CardTitle className="text-xl">{goal.title}</CardTitle>
             <CardDescription className="mt-2">{goal.description}</CardDescription>
           </div>
-          <Target className="w-6 h-6 text-primary" />
+          <div className="flex items-center gap-2">
+            <Target className="w-6 h-6 text-primary" />
+            {(onEdit || onDelete) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onEdit && (
+                    <DropdownMenuItem onClick={() => onEdit(goal)}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit Goal
+                    </DropdownMenuItem>
+                  )}
+                  {onDelete && (
+                    <DropdownMenuItem
+                      onClick={() => onDelete(goal)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Goal
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       </CardHeader>
       
@@ -151,7 +182,7 @@ export function GoalCard({ goal, onUpdate }: GoalCardProps) {
                         placeholder="Add new action..."
                         value={newActionTitle}
                         onChange={(e) => setNewActionTitle(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddAction()}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddAction()}
                         className="w-48"
                       />
                       <Button size="sm" onClick={handleAddAction}>

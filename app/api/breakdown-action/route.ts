@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, context, level = 0 } = await request.json();
+    const { action, context, level = 0, goalId, milestoneId } = await request.json();
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({
@@ -124,6 +124,11 @@ Respond with a JSON object in this exact format:
       subActions: [] // Initialize empty sub-actions array
     }));
 
+    // Save sub-actions to database if goalId or milestoneId is provided
+    if (goalId || milestoneId) {
+      await saveSubActionsToDatabase(subActions, goalId, milestoneId, action.id);
+    }
+
     return NextResponse.json({
       subActions,
       reasoning: parsedResponse.reasoning
@@ -184,4 +189,67 @@ function generateFallbackBreakdown(action: any, level: number) {
     })),
     reasoning: "Generated fallback breakdown due to API unavailability"
   };
+}
+
+async function saveSubActionsToDatabase(subActions: any[], goalId?: string, milestoneId?: string, parentActionId?: string) {
+  try {
+    const { createClient } = await import('@/lib/supabase/server');
+    const supabase = await createClient();
+
+    // Get user from request
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error('No user found for saving sub-actions');
+      return;
+    }
+
+    if (goalId) {
+      // Save as regular actions with parent_id
+      const actionsToInsert = subActions.map((subAction: any) => ({
+        goal_id: goalId,
+        parent_id: parentActionId,
+        title: subAction.title,
+        completed: subAction.completed || false,
+        date: subAction.date || new Date().toISOString().split('T')[0],
+        impact: subAction.impact || subAction.estimatedMinutes || 10,
+        level: subAction.level || 1,
+        is_expanded: false
+      }));
+
+      const { error: actionsError } = await supabase
+        .from('actions')
+        .insert(actionsToInsert);
+
+      if (actionsError) {
+        console.error('Error saving sub-actions:', actionsError);
+      } else {
+        console.log('Successfully saved sub-actions to database');
+      }
+    } else if (milestoneId) {
+      // Save as milestone actions
+      const milestoneActionsToInsert = subActions.map((subAction: any) => ({
+        milestone_id: milestoneId,
+        parent_id: parentActionId,
+        title: subAction.title,
+        completed: subAction.completed || false,
+        date: subAction.date || new Date().toISOString().split('T')[0],
+        impact: subAction.impact || subAction.estimatedMinutes || 10,
+        level: subAction.level || 1,
+        is_expanded: false
+      }));
+
+      const { error: milestoneActionsError } = await supabase
+        .from('milestone_actions')
+        .insert(milestoneActionsToInsert);
+
+      if (milestoneActionsError) {
+        console.error('Error saving milestone sub-actions:', milestoneActionsError);
+      } else {
+        console.log('Successfully saved milestone sub-actions to database');
+      }
+    }
+  } catch (error) {
+    console.error('Error in saveSubActionsToDatabase:', error);
+  }
 }

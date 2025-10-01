@@ -7,16 +7,22 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { goal } = await request.json();
+    const { goal, goalId } = await request.json();
 
     if (!process.env.OPENAI_API_KEY) {
       console.log('No OpenAI key, using fallback');
       const enhancedData = generateSmartSuggestions(goal);
+      if (goalId) {
+        await saveToDatabase(goalId, enhancedData);
+      }
       return NextResponse.json(enhancedData);
     }
 
     // Use OpenAI to enhance the goal
     const enhancedData = await enhanceGoalWithOpenAI(goal);
+    if (goalId) {
+      await saveToDatabase(goalId, enhancedData);
+    }
     return NextResponse.json(enhancedData);
 
   } catch (error) {
@@ -24,6 +30,9 @@ export async function POST(request: NextRequest) {
 
     // Fallback to rule-based suggestions
     const enhancedData = generateSmartSuggestions(goal);
+    if (goalId) {
+      await saveToDatabase(goalId, enhancedData);
+    }
     return NextResponse.json(enhancedData);
   }
 }
@@ -217,4 +226,101 @@ function generateSmartSuggestions(goal: any) {
     milestones,
     aiInsight: `Based on your ${category} goal "${title}", I've suggested ${actions.length} actionable steps and ${milestones.length} key milestones to help you succeed.`
   };
+}
+
+async function saveToDatabase(goalId: string, enhancedData: any) {
+  try {
+    const { createClient } = await import('@/lib/supabase/server');
+    const supabase = await createClient();
+
+    // Get user from request
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error('No user found for saving enhanced data');
+      return;
+    }
+
+    // Verify goal belongs to user
+    const { data: goal, error: goalError } = await supabase
+      .from('goals')
+      .select('user_id')
+      .eq('id', goalId)
+      .single();
+
+    if (goalError || !goal || goal.user_id !== user.id) {
+      console.error('Goal not found or unauthorized');
+      return;
+    }
+
+    // Save actions if any
+    if (enhancedData.actions && enhancedData.actions.length > 0) {
+      const actionsToInsert = enhancedData.actions.map((action: any) => ({
+        goal_id: goalId,
+        title: action.title,
+        completed: action.completed || false,
+        date: action.date || new Date().toISOString().split('T')[0],
+        impact: action.impact || 10,
+        level: action.level || 0,
+        parent_id: action.parentId || null,
+        is_expanded: action.isExpanded || false
+      }));
+
+      const { error: actionsError } = await supabase
+        .from('actions')
+        .insert(actionsToInsert);
+
+      if (actionsError) {
+        console.error('Error saving actions:', actionsError);
+      }
+    }
+
+    // Save milestones if any
+    if (enhancedData.milestones && enhancedData.milestones.length > 0) {
+      for (const milestone of enhancedData.milestones) {
+        const { data: insertedMilestone, error: milestoneError } = await supabase
+          .from('milestones')
+          .insert({
+            goal_id: goalId,
+            title: milestone.title,
+            completed: milestone.completed || false,
+            date: milestone.date || null,
+            is_expanded: milestone.isExpanded || false
+          })
+          .select()
+          .single();
+
+        if (milestoneError) {
+          console.error('Error saving milestone:', milestoneError);
+          continue;
+        }
+
+        // Save milestone actions if any
+        if (milestone.actions && milestone.actions.length > 0) {
+          const milestoneActionsToInsert = milestone.actions.map((action: any) => ({
+            milestone_id: insertedMilestone.id,
+            title: action.title,
+            completed: action.completed || false,
+            date: action.date || new Date().toISOString().split('T')[0],
+            impact: action.impact || 10,
+            level: action.level || 1,
+            parent_id: action.parentId || null,
+            is_expanded: action.isExpanded || false
+          }));
+
+          const { error: milestoneActionsError } = await supabase
+            .from('milestone_actions')
+            .insert(milestoneActionsToInsert);
+
+          if (milestoneActionsError) {
+            console.error('Error saving milestone actions:', milestoneActionsError);
+          }
+        }
+      }
+    }
+
+    console.log('Successfully saved enhanced data to database');
+  } catch (error) {
+    console.error('Error in saveToDatabase:', error);
+  }
 }
