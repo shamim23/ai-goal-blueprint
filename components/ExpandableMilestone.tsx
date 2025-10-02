@@ -15,12 +15,14 @@ interface ExpandableMilestoneProps {
     goalTitle: string;
     goalCategory: string;
   };
+  goalId?: string;
   onUpdateMilestone: (milestoneId: string, updates: Partial<Milestone>) => void;
 }
 
 export function ExpandableMilestone({
   milestone,
   goalContext,
+  goalId,
   onUpdateMilestone
 }: ExpandableMilestoneProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -232,6 +234,7 @@ export function ExpandableMilestone({
               key={subAction.id}
               action={subAction}
               goalContext={goalContext}
+              goalId={goalId}
               onUpdateAction={(subActionId, updates) => updateSubAction(subActionId, updates)}
               level={1}
             />

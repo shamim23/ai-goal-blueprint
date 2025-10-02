@@ -170,6 +170,7 @@ export function ActionLog({ goals, onUpdateGoal }: ActionLogProps) {
                     goalTitle: action.goalTitle,
                     goalCategory: action.goalCategory
                   }}
+                  goalId={action.goalId}
                   onUpdateAction={handleUpdateAction}
                 />
               </div>

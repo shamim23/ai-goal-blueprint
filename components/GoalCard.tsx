@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Target, Calendar, TrendingUp, CheckCircle, Circle, Plus, Edit, Trash2, MoreVertical } from "lucide-react";
+import { Target, Calendar, TrendingUp, CheckCircle, Circle, Plus, Edit, Trash2, MoreVertical, Timer, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -31,12 +31,13 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
   const { toast } = useToast();
   const [showActions, setShowActions] = useState(false);
   const [newActionTitle, setNewActionTitle] = useState("");
+  const [isGeneratingAllTimes, setIsGeneratingAllTimes] = useState(false);
 
   const daysUntilDeadline = Math.ceil(
     (new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const handleAddAction = () => {
+  const handleAddAction = async () => {
     if (!newActionTitle.trim()) return;
 
     const newAction: Action = {
@@ -48,9 +49,31 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
       subActions: []
     };
 
+    const updatedActions = [...goal.actions, newAction];
+
+    // Optimistically update UI
     onUpdate({
-      actions: [...goal.actions, newAction]
+      actions: updatedActions
     });
+
+    // Save to database
+    try {
+      await fetch('/api/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goalId: goal.id,
+          actions: updatedActions
+        }),
+      });
+    } catch (error) {
+      console.error('Error saving action:', error);
+      toast({
+        title: "Warning",
+        description: "Action added locally but failed to save to database.",
+        variant: "destructive"
+      });
+    }
 
     setNewActionTitle("");
     toast({
@@ -59,23 +82,141 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
     });
   };
 
-  const toggleAction = (actionId: string) => {
+  const toggleAction = async (actionId: string) => {
     const updatedActions = goal.actions.map(action =>
       action.id === actionId ? { ...action, completed: !action.completed } : action
     );
-    
+
     const completedCount = updatedActions.filter(a => a.completed).length;
     const newProgress = Math.round((completedCount / updatedActions.length) * 100);
 
+    // Optimistically update UI
     onUpdate({
       actions: updatedActions,
       progress: newProgress || 0
     });
 
+    // Save to database
+    try {
+      await fetch('/api/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goalId: goal.id,
+          actions: updatedActions
+        }),
+      });
+    } catch (error) {
+      console.error('Error saving action:', error);
+    }
+
     toast({
       title: "Progress Updated! 🎯",
       description: `${goal.title} is now ${newProgress}% complete`,
     });
+  };
+
+  const handleGenerateAllTimes = async () => {
+    setIsGeneratingAllTimes(true);
+    try {
+      const generateTimeForAction = async (action: Action, level: number = 0): Promise<Action> => {
+        if (action.estimatedTime) {
+          // If already has time, just process sub-actions
+          if (action.subActions) {
+            const updatedSubActions = await Promise.all(
+              action.subActions.map(subAction => generateTimeForAction(subAction, level + 1))
+            );
+            return { ...action, subActions: updatedSubActions };
+          }
+          return action;
+        }
+
+        try {
+          const response = await fetch('/api/estimate-time', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: {
+                id: action.id,
+                title: action.title,
+                impact: action.impact,
+                notes: action.notes
+              },
+              context: {
+                goalTitle: goal.title,
+                goalCategory: goal.category
+              },
+              level
+            }),
+          });
+
+          const data = await response.json();
+          let updatedAction = { ...action };
+
+          if (data.estimatedTime) {
+            updatedAction = {
+              ...action,
+              estimatedTime: data.estimatedTime,
+              timeGenerated: true
+            };
+          }
+
+          // Process sub-actions recursively
+          if (action.subActions) {
+            const updatedSubActions = await Promise.all(
+              action.subActions.map(subAction => generateTimeForAction(subAction, level + 1))
+            );
+            updatedAction = { ...updatedAction, subActions: updatedSubActions };
+          }
+
+          return updatedAction;
+        } catch (error) {
+          console.error(`Error estimating time for ${action.title}:`, error);
+          return action;
+        }
+      };
+
+      const updatedActions = await Promise.all(
+        goal.actions.map(action => generateTimeForAction(action))
+      );
+
+      const totalEstimatedTime = calculateTotalTime(updatedActions);
+
+      onUpdate({ actions: updatedActions });
+
+      toast({
+        title: "All Times Generated! ⏱️",
+        description: `Total estimated time: ${formatTime(totalEstimatedTime)}`,
+      });
+    } catch (error) {
+      console.error('Error generating all times:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate some time estimates. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingAllTimes(false);
+    }
+  };
+
+  const calculateTotalTime = (actions: Action[]): number => {
+    return actions.reduce((total, action) => {
+      let actionTotal = action.estimatedTime || 0;
+      if (action.subActions) {
+        actionTotal += calculateTotalTime(action.subActions);
+      }
+      return total + actionTotal;
+    }, 0);
+  };
+
+  const formatTime = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
   };
 
   return (
@@ -178,6 +319,25 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="font-semibold">Actions & Tasks</h3>
                     <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleGenerateAllTimes}
+                        disabled={isGeneratingAllTimes}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        {isGeneratingAllTimes ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Timer className="w-4 h-4 mr-2" />
+                            Generate All Times
+                          </>
+                        )}
+                      </Button>
                       <Input
                         placeholder="Add new action..."
                         value={newActionTitle}
@@ -193,12 +353,42 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
                   
                   <div className="space-y-1 max-h-60 overflow-y-auto">
                     {goal.actions.map((action) => {
+                      // Helper function to recursively update an action or subaction
+                      const updateActionRecursively = (actions: Action[], actionId: string, updates: Partial<Action>): Action[] => {
+                        return actions.map(a => {
+                          if (a.id === actionId) {
+                            return { ...a, ...updates };
+                          }
+                          if (a.subActions && a.subActions.length > 0) {
+                            return {
+                              ...a,
+                              subActions: updateActionRecursively(a.subActions, actionId, updates)
+                            };
+                          }
+                          return a;
+                        });
+                      };
+
                       // Helper function to update an action
-                      const handleUpdateAction = (actionId: string, updates: Partial<Action>) => {
-                        const updatedActions = goal.actions.map(a =>
-                          a.id === actionId ? { ...a, ...updates } : a
-                        );
+                      const handleUpdateAction = async (actionId: string, updates: Partial<Action>) => {
+                        const updatedActions = updateActionRecursively(goal.actions, actionId, updates);
+
+                        // Optimistically update UI
                         onUpdate({ actions: updatedActions });
+
+                        // Save to database
+                        try {
+                          await fetch('/api/actions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              goalId: goal.id,
+                              actions: updatedActions
+                            }),
+                          });
+                        } catch (error) {
+                          console.error('Error saving action updates:', error);
+                        }
                       };
 
                       return (
@@ -209,6 +399,7 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
                             goalTitle: goal.title,
                             goalCategory: goal.category
                           }}
+                          goalId={goal.id}
                           onUpdateAction={handleUpdateAction}
                         />
                       );
@@ -243,6 +434,7 @@ export function GoalCard({ goal, onUpdate, onEdit, onDelete }: GoalCardProps) {
                             goalTitle: goal.title,
                             goalCategory: goal.category
                           }}
+                          goalId={goal.id}
                           onUpdateMilestone={handleUpdateMilestone}
                         />
                       );

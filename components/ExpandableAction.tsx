@@ -1,11 +1,14 @@
 'use client'
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Zap, Clock, Target, Loader2, Brain } from "lucide-react";
+import { ChevronDown, ChevronRight, Zap, Clock, Target, Loader2, Brain, Timer, StickyNote, Plus, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Action } from "@/app/page";
+import { Action } from "@/app/dashboard/page";
 import { TaskAnalysisModal } from "@/components/TaskAnalysisModal";
 
 interface ExpandableActionProps {
@@ -14,6 +17,7 @@ interface ExpandableActionProps {
     goalTitle: string;
     goalCategory: string;
   };
+  goalId?: string;
   onUpdateAction: (actionId: string, updates: Partial<Action>) => void;
   level?: number;
 }
@@ -21,11 +25,15 @@ interface ExpandableActionProps {
 export function ExpandableAction({
   action,
   goalContext,
+  goalId,
   onUpdateAction,
   level = 0
 }: ExpandableActionProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [isGeneratingTime, setIsGeneratingTime] = useState(false);
+  const [notes, setNotes] = useState(action.notes || "");
   const { toast } = useToast();
 
   const handleToggleComplete = () => {
@@ -33,13 +41,20 @@ export function ExpandableAction({
   };
 
   const handleExpandAction = async () => {
+    console.log('handleExpandAction called for:', action.title)
+    console.log('Current subActions:', action.subActions)
+    console.log('subActions length:', action.subActions?.length)
+
     if (action.subActions && action.subActions.length > 0) {
       // Just toggle expansion if sub-actions already exist
+      console.log('Toggling expansion for existing subActions')
       onUpdateAction(action.id, { isExpanded: !action.isExpanded });
       return;
     }
 
     // Generate sub-actions using AI
+    console.log('No subActions found, generating new ones')
+    console.log('goalId:', goalId)
     setIsLoading(true);
     try {
       const response = await fetch('/api/breakdown-action', {
@@ -50,7 +65,8 @@ export function ExpandableAction({
         body: JSON.stringify({
           action,
           context: goalContext,
-          level
+          level,
+          goalId
         }),
       });
 
@@ -92,10 +108,22 @@ export function ExpandableAction({
   const updateSubAction = (subActionId: string, updates: Partial<Action>) => {
     if (!action.subActions) return;
 
-    const updatedSubActions = action.subActions.map(subAction =>
-      subAction.id === subActionId ? { ...subAction, ...updates } : subAction
-    );
+    const updateRecursively = (actions: Action[]): Action[] => {
+      return actions.map(subAction => {
+        if (subAction.id === subActionId) {
+          return { ...subAction, ...updates };
+        }
+        if (subAction.subActions && subAction.subActions.length > 0) {
+          return {
+            ...subAction,
+            subActions: updateRecursively(subAction.subActions)
+          };
+        }
+        return subAction;
+      });
+    };
 
+    const updatedSubActions = updateRecursively(action.subActions);
     onUpdateAction(action.id, { subActions: updatedSubActions });
   };
 
@@ -124,6 +152,69 @@ export function ExpandableAction({
     }
 
     return data;
+  };
+
+  const handleGenerateTime = async () => {
+    setIsGeneratingTime(true);
+    try {
+      const response = await fetch('/api/estimate-time', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: {
+            id: action.id,
+            title: action.title,
+            impact: action.impact,
+            notes: action.notes
+          },
+          context: goalContext,
+          level
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.estimatedTime) {
+        onUpdateAction(action.id, {
+          estimatedTime: data.estimatedTime,
+          timeGenerated: true
+        });
+
+        toast({
+          title: "Time Estimated! ⏱️",
+          description: `Estimated ${formatTime(data.estimatedTime)} for "${action.title}"`,
+        });
+      }
+    } catch (error) {
+      console.error('Error estimating time:', error);
+      toast({
+        title: "Error",
+        description: "Failed to estimate time. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingTime(false);
+    }
+  };
+
+  const handleSaveNotes = () => {
+    onUpdateAction(action.id, { notes });
+    setShowNotesDialog(false);
+    toast({
+      title: "Notes Saved! 📝",
+      description: `Notes updated for "${action.title}"`,
+    });
+  };
+
+  const formatTime = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
   };
 
   const indentLevel = level * 20;
@@ -181,6 +272,18 @@ export function ExpandableAction({
                 <Target className="w-3 h-3 mr-1" />
                 {action.impact}
               </Badge>
+              {action.estimatedTime && (
+                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  <Timer className="w-3 h-3 mr-1" />
+                  {formatTime(action.estimatedTime)}
+                </Badge>
+              )}
+              {action.notes && (
+                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                  <StickyNote className="w-3 h-3 mr-1" />
+                  Notes
+                </Badge>
+              )}
               {action.date && (
                 <Badge variant="outline" className="text-xs">
                   <Clock className="w-3 h-3 mr-1" />
@@ -197,16 +300,73 @@ export function ExpandableAction({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 ml-2">
+        <div className="flex gap-1 ml-2">
+          {/* Time Estimation Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleGenerateTime}
+            disabled={isGeneratingTime}
+            className="text-blue-600 hover:text-blue-700 px-2"
+            title="Generate time estimate"
+          >
+            {isGeneratingTime ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Timer className="w-3 h-3" />
+            )}
+          </Button>
+
+          {/* Notes Button */}
+          <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-green-600 hover:text-green-700 px-2"
+                title="Add/edit notes"
+              >
+                <StickyNote className="w-3 h-3" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Notes for "{action.title}"</DialogTitle>
+                <DialogDescription>
+                  Add notes, comments, or additional details for this task.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Textarea
+                  placeholder="Enter your notes here..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="min-h-[100px]"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowNotesDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveNotes}>
+                    Save Notes
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Analyze Button */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowAnalysisModal(true)}
-            className="text-primary hover:text-primary"
+            className="text-purple-600 hover:text-purple-700 px-2"
+            title="Analyze task"
           >
-            <Brain className="w-3 h-3 mr-1" />
-            Analyze
+            <Brain className="w-3 h-3" />
           </Button>
 
           {/* AI Breakdown Button */}
@@ -216,9 +376,10 @@ export function ExpandableAction({
               size="sm"
               onClick={handleExpandAction}
               disabled={isLoading}
+              title="Break down into subtasks"
             >
               <Zap className="w-3 h-3 mr-1" />
-              {isLoading ? 'Breaking down...' : 'Break Down'}
+              {isLoading ? 'Breaking...' : 'Break Down'}
             </Button>
           )}
         </div>
@@ -232,6 +393,7 @@ export function ExpandableAction({
               key={subAction.id}
               action={subAction}
               goalContext={goalContext}
+              goalId={goalId}
               onUpdateAction={(subActionId, updates) => updateSubAction(subActionId, updates)}
               level={level + 1}
             />

@@ -14,6 +14,8 @@ import { NetworkGraphView } from "@/components/NetworkGraphView";
 import { ToolsSection } from "@/components/ToolsSection";
 import { EditGoalDialog } from "@/components/EditGoalDialog";
 import { DeleteGoalDialog } from "@/components/DeleteGoalDialog";
+import { CalendarIntegration } from "@/components/CalendarIntegration";
+import { SmartCalendar } from "@/components/SmartCalendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,6 +27,8 @@ export interface Goal {
   progress: number;
   target: number;
   deadline: string;
+  startDate?: string;
+  schedule?: any;
   actions: Action[];
   milestones: Milestone[];
 }
@@ -39,6 +43,10 @@ export interface Action {
   level?: number;
   parentId?: string;
   isExpanded?: boolean;
+  notes?: string;
+  estimatedTime?: number; // in minutes
+  actualTime?: number; // in minutes
+  timeGenerated?: boolean;
 }
 
 export interface Milestone {
@@ -66,6 +74,18 @@ export default function HomePage() {
         const response = await fetch('/api/goals');
         if (response.ok) {
           const data = await response.json();
+          console.log('Fetched goals:', data.goals);
+          data.goals.forEach((goal: Goal) => {
+            console.log(`Goal: ${goal.title}, Actions:`, goal.actions);
+            goal.actions.forEach((action: Action) => {
+              console.log(`  Action: ${action.title}, SubActions: ${action.subActions?.length || 0}`);
+              if (action.subActions && action.subActions.length > 0) {
+                action.subActions.forEach((sub: Action) => {
+                  console.log(`    SubAction: ${sub.title}`);
+                });
+              }
+            });
+          });
           setGoals(data.goals);
         } else {
           console.error('Failed to fetch goals:', response.statusText);
@@ -208,14 +228,22 @@ export default function HomePage() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="goals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-[750px] mx-auto">
+          <TabsList className="grid w-full grid-cols-7 lg:w-[1050px] mx-auto">
             <TabsTrigger value="goals" className="flex items-center gap-2">
               <Target className="w-4 h-4" />
               My Goals
             </TabsTrigger>
+            <TabsTrigger value="schedule" className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Smart Schedule
+            </TabsTrigger>
             <TabsTrigger value="tools" className="flex items-center gap-2">
               <Wrench className="w-4 h-4" />
               Tools
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Calendar Sync
             </TabsTrigger>
             <TabsTrigger value="graph" className="flex items-center gap-2">
               <Zap className="w-4 h-4" />
@@ -240,51 +268,58 @@ export default function HomePage() {
               completedActions={completedActions}
             />
 
-            {/* Goals Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {isLoading ? (
-                // Loading state
-                <Card className="bg-gradient-card border-border shadow-elegant">
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-                    <p className="text-muted-foreground">Loading your goals...</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <>
-                  {goals.map((goal) => (
-                    <GoalCard
-                      key={goal.id}
-                      goal={goal}
-                      onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
-                      onEdit={handleEditGoal}
-                      onDelete={handleDeleteGoal}
-                    />
-                  ))}
-
-                  {goals.length === 0 && (
-                    <Card className="bg-gradient-card border-border shadow-elegant">
-                      <CardContent className="flex flex-col items-center justify-center py-12">
-                        <Target className="w-16 h-16 text-muted-foreground mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">No goals yet</h3>
-                        <p className="text-muted-foreground text-center mb-6">
-                          Create your first goal to start tracking your progress
-                        </p>
-                        <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create Your First Goal
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* AI Insights & Action Log */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Goals & Action Log */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               <div className="lg:col-span-2">
                 <ActionLog goals={goals} onUpdateGoal={handleUpdateGoal} />
+              </div>
+
+              {/* Goals Stacked Vertically */}
+              <div className="space-y-6">
+                {isLoading ? (
+                  // Loading state
+                  <Card className="bg-gradient-card border-border shadow-elegant">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+                      <p className="text-muted-foreground">Loading your goals...</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {goals.map((goal) => (
+                      <GoalCard
+                        key={goal.id}
+                        goal={goal}
+                        onUpdate={(updates) => handleUpdateGoal(goal.id, updates)}
+                        onEdit={handleEditGoal}
+                        onDelete={handleDeleteGoal}
+                      />
+                    ))}
+
+                    {goals.length === 0 && (
+                      <Card className="bg-gradient-card border-border shadow-elegant">
+                        <CardContent className="flex flex-col items-center justify-center py-12">
+                          <Target className="w-16 h-16 text-muted-foreground mb-4" />
+                          <h3 className="text-xl font-semibold mb-2">No goals yet</h3>
+                          <p className="text-muted-foreground text-center mb-6">
+                            Create your first goal to start tracking your progress
+                          </p>
+                          <Button onClick={() => setShowCreateDialog(true)} variant="outline">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create Your First Goal
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* AI Insights */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                {/* Empty space for alignment */}
               </div>
               <div>
                 <Card className="bg-gradient-card border-border shadow-elegant">
@@ -331,8 +366,16 @@ export default function HomePage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="schedule">
+            <SmartCalendar goals={goals} />
+          </TabsContent>
+
           <TabsContent value="tools">
             <ToolsSection goals={goals} />
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            <CalendarIntegration goals={goals} />
           </TabsContent>
 
           <TabsContent value="graph" className="space-y-6">

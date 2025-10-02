@@ -125,15 +125,61 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch goals' }, { status: 500 })
     }
 
+    // Helper function to build action tree with subactions
+    const buildActionTree = (actions: any[]): any[] => {
+      const actionMap = new Map()
+      const rootActions: any[] = []
+
+      console.log('Building action tree from actions:', actions.length)
+      console.log('All actions:', actions.map(a => ({ id: a.id, title: a.title, parent_id: a.parent_id })))
+
+      // First pass: create all action objects
+      actions.forEach(action => {
+        actionMap.set(action.id, {
+          ...action,
+          level: action.level || 0,
+          isExpanded: action.is_expanded !== undefined ? action.is_expanded : false,
+          parentId: action.parent_id,
+          notes: action.notes,
+          estimatedTime: action.estimated_time,
+          actualTime: action.actual_time,
+          timeGenerated: action.time_generated,
+          subActions: []
+        })
+        console.log(`Mapped action: ${action.title}, id: ${action.id}, parent_id: ${action.parent_id}`)
+      })
+
+      // Second pass: build tree structure
+      actionMap.forEach(action => {
+        if (action.parentId) {
+          const parent = actionMap.get(action.parentId)
+          if (parent) {
+            parent.subActions.push(action)
+            console.log(`Added subaction "${action.title}" to parent "${parent.title}"`)
+          } else {
+            console.log(`Warning: Parent ${action.parentId} not found for action ${action.id}`)
+          }
+        } else {
+          rootActions.push(action)
+        }
+      })
+
+      // Third pass: auto-expand actions that have subactions (if not explicitly set to collapsed)
+      actionMap.forEach(action => {
+        if (action.subActions.length > 0 && action.is_expanded !== false) {
+          action.isExpanded = true
+          console.log(`Auto-expanding "${action.title}" (has ${action.subActions.length} subactions)`)
+        }
+      })
+
+      console.log('Built tree with root actions:', rootActions.length)
+      return rootActions
+    }
+
     // Transform database data to match frontend interface
     const transformedGoals = goals?.map((goal: any) => ({
       ...goal,
-      actions: goal.actions?.map((action: any) => ({
-        ...action,
-        level: action.level || 0,
-        isExpanded: action.is_expanded || false,
-        subActions: []
-      })) || [],
+      actions: buildActionTree(goal.actions || []),
       milestones: goal.milestones?.map((milestone: any) => ({
         ...milestone,
         isExpanded: milestone.is_expanded || false,
@@ -141,6 +187,9 @@ export async function GET() {
           ...action,
           level: action.level || 1,
           isExpanded: action.is_expanded || false,
+          estimatedTime: action.estimated_time,
+          actualTime: action.actual_time,
+          timeGenerated: action.time_generated,
           subActions: []
         })) || []
       })) || []
